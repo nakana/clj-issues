@@ -1,0 +1,230 @@
+* ver-0
+
+#+BEGIN_SRC clojure
+(ns clj-issues.core
+  (:require [org.httpkit.client :as http]
+            [clojure.data.json :as json]))
+
+(http/get
+ "https://api.github.com/repos/ruby/ruby/issues"
+ (fn [{:keys [body]}]
+   (-> (json/read-str body :key-fn keyword)
+       (->> (map #(format "%-7s | %-20s | %-40s\n" (:number %) (:created_at %) (:title %))))
+       clojure.string/join
+       println
+       )))
+#+END_SRC
+
+
+#+BEGIN_EXAMPLE
+1827    | 2018-02-28T14:46:02Z | Cleaner looking email adresses in readme.md
+1820    | 2018-02-19T12:57:52Z | Bug Fix Enumerator::Lazy#uniq state for multiple call
+1818    | 2018-02-14T18:24:04Z | [Docs] Add missing class FrozenError to Exception subclasses list documentation
+1817    | 2018-02-14T04:25:00Z | C preprocessor written in pure Ruby.    
+1815    | 2018-02-10T21:10:22Z | Improve compatibility with OpenSSL 1.1.0
+1814    | 2018-02-10T19:37:46Z | Re-arrange public .alphanumeric method to fix docs
+1812    | 2018-02-09T20:26:20Z | [Docs] Show alphanumeric example in module docs
+1806    | 2018-02-01T12:51:36Z | net/http: use connect_timeout in Socket.tcp
+1804    | 2018-01-31T05:44:30Z | new VM timestamp variable               
+1803    | 2018-01-29T20:30:51Z | Fix bug: Vector#angle_with with linearly dependent vectors
+1802    | 2018-01-29T05:28:14Z | [Feature #4824]ruby.c: implement Kernel#executed?
+1798    | 2018-01-26T00:27:52Z | Speed up full scan completion in IRB    
+1790    | 2018-01-17T09:12:34Z | Removing duplicated assertions on test_array.rb - MINUS method
+1787    | 2018-01-05T09:58:14Z | Use -Wimplicit-fallthrough              
+1786    | 2018-01-03T23:46:51Z | Improve Prime:prime? algorithm up to 4 times faster
+1780    | 2017-12-23T19:10:33Z | Introduce RUBY_PATCHNAME constant       
+1769    | 2017-12-06T19:02:04Z | Make Matrix#[]= public method           
+1767    | 2017-12-01T16:25:43Z | gc.h: Add SET_MACHINE_STACK_END specific for Powerpc64
+1763    | 2017-11-20T16:25:17Z | Rename test classes to allow stable test count when running test-all -j
+1759    | 2017-11-16T22:03:28Z | Add #empty? to Tempfile, StringIO, File::Stat
+1758    | 2017-11-16T10:29:34Z |  Add difference method to Array         
+1754    | 2017-11-15T06:41:07Z | FileUtils : Use Dir.children instead of Dir.entries
+1753    | 2017-11-14T13:28:09Z | Set#^ is XOR                            
+1750    | 2017-11-13T14:28:35Z | Correct grammar mistake in README       
+1749    | 2017-11-13T09:52:58Z | change call CGI methods from :: to .    
+1748    | 2017-11-13T06:23:46Z | URI::Generic: Respect no_proxy for both parent domain and subdomains
+1747    | 2017-11-10T13:19:38Z | Add union method to Array               
+1732    | 2017-10-29T13:20:54Z | CAA DNS RR                              
+1730    | 2017-10-27T15:14:34Z | Add Matrix#antisymmetric? and Matrix#reflexive?
+1723    | 2017-10-21T13:19:01Z | vm_core.h: add doxygen document comments
+#+END_EXAMPLE
+
+
+* ver-1
+
+#+BEGIN_SRC clojure
+(ns clj-issues.core1
+  (:require [org.httpkit.client :as http]
+            [clojure.data.json :as json]))
+
+(defn process-with-counter [a b]
+  {:data       (conj (:data       a)                     b)
+   :number     (max  (:number     a) (-> (:number     b) str count))
+   :created_at (max  (:created_at a) (-> (:created_at b)     count))
+   :title      (max  (:title      a) (-> (:title      b)     count))})
+
+
+(defn rpt-str [s n]
+  (clojure.string/join (repeat n s)))
+
+(defn make-header [x]
+  (let [line (str 
+              (rpt-str "-" (inc (:number x)))
+              "+"
+              (rpt-str "-" (+ 2 (:created_at x)))
+              "+"
+              (rpt-str "-" (inc (:title x))))
+        fmt (format"%%-%ds | %%-%ds | %%-%ds" (:number x) (:created_at x) (:title x))]
+    [line (format fmt "number" "created_at" "title") line]))
+
+(defn make-body [x]
+  (let [fmt (format"%%-%ds | %%-%ds | %%-%ds" (:number x) (:created_at x) (:title x))]
+    (->> (:data x)
+         (map #(format fmt (:number %) (:created_at %) (:title %))))))
+
+(defn process [data]
+  (-> (json/read-str data :key-fn keyword)
+      (->> (map #(select-keys % [:number :title :created_at]))
+           (reduce process-with-counter {:data [] :number 6 :created_at 10 :title 5}))
+      (as-> x (concat (make-header x) (make-body x)))
+      (->> (clojure.string/join "\n"))
+      print))
+
+(defn run []
+  (let [response @(http/get "https://api.github.com/repos/ruby/ruby/issues")]
+    (process (:body response))))
+#+END_SRC
+
+
+#+BEGIN_EXAMPLE
+-------+----------------------+--------------------------------------------------------------------------------
+number | created_at           | title                                                                          
+-------+----------------------+--------------------------------------------------------------------------------
+1827   | 2018-02-28T14:46:02Z | Cleaner looking email adresses in readme.md                                    
+1820   | 2018-02-19T12:57:52Z | Bug Fix Enumerator::Lazy#uniq state for multiple call                          
+1818   | 2018-02-14T18:24:04Z | [Docs] Add missing class FrozenError to Exception subclasses list documentation
+1817   | 2018-02-14T04:25:00Z | C preprocessor written in pure Ruby.                                           
+1815   | 2018-02-10T21:10:22Z | Improve compatibility with OpenSSL 1.1.0                                       
+1814   | 2018-02-10T19:37:46Z | Re-arrange public .alphanumeric method to fix docs                             
+1812   | 2018-02-09T20:26:20Z | [Docs] Show alphanumeric example in module docs                                
+1806   | 2018-02-01T12:51:36Z | net/http: use connect_timeout in Socket.tcp                                    
+1804   | 2018-01-31T05:44:30Z | new VM timestamp variable                                                      
+1803   | 2018-01-29T20:30:51Z | Fix bug: Vector#angle_with with linearly dependent vectors                     
+1802   | 2018-01-29T05:28:14Z | [Feature #4824]ruby.c: implement Kernel#executed?                              
+1798   | 2018-01-26T00:27:52Z | Speed up full scan completion in IRB                                           
+1790   | 2018-01-17T09:12:34Z | Removing duplicated assertions on test_array.rb - MINUS method                 
+1787   | 2018-01-05T09:58:14Z | Use -Wimplicit-fallthrough                                                     
+1786   | 2018-01-03T23:46:51Z | Improve Prime:prime? algorithm up to 4 times faster                            
+1780   | 2017-12-23T19:10:33Z | Introduce RUBY_PATCHNAME constant                                              
+1769   | 2017-12-06T19:02:04Z | Make Matrix#[]= public method                                                  
+1767   | 2017-12-01T16:25:43Z | gc.h: Add SET_MACHINE_STACK_END specific for Powerpc64                         
+1763   | 2017-11-20T16:25:17Z | Rename test classes to allow stable test count when running test-all -j        
+1759   | 2017-11-16T22:03:28Z | Add #empty? to Tempfile, StringIO, File::Stat                                  
+1758   | 2017-11-16T10:29:34Z |  Add difference method to Array                                                
+1754   | 2017-11-15T06:41:07Z | FileUtils : Use Dir.children instead of Dir.entries                            
+1753   | 2017-11-14T13:28:09Z | Set#^ is XOR                                                                   
+1750   | 2017-11-13T14:28:35Z | Correct grammar mistake in README                                              
+1749   | 2017-11-13T09:52:58Z | change call CGI methods from :: to .                                           
+1748   | 2017-11-13T06:23:46Z | URI::Generic: Respect no_proxy for both parent domain and subdomains           
+1747   | 2017-11-10T13:19:38Z | Add union method to Array                                                      
+1732   | 2017-10-29T13:20:54Z | CAA DNS RR                                                                     
+1730   | 2017-10-27T15:14:34Z | Add Matrix#antisymmetric? and Matrix#reflexive?                                
+1723   | 2017-10-21T13:19:01Z | vm_core.h: add doxygen document comments                                       
+#+END_EXAMPLE
+
+
+* ver-2
+#+BEGIN_SRC clojure
+(ns clj-issues.core2
+  (:require [org.httpkit.client :as http]
+	      [clojure.data.json :as json]
+	      [clj-issues.data :as data]))
+
+(defn count-up [a b]
+  {:number     (max  (:number     a) (-> (b "number"    ) str count))
+   :created_at (max  (:created_at a) (-> (b "created_at")     count))
+   :title      (max  (:title      a) (-> (b "title"     )     count))})
+
+(defn rpt-str [s n]
+  (apply str (repeat n s)))
+
+(defn item-line-str [data {:keys [number created_at title]}]
+  (let [fmt (format"%%-%ds | %%-%ds | %%-%ds" number created_at title)]
+	(format fmt (data "number") (data "created_at") (data "title"))))
+
+(defn make-holizon-line [{:keys [number created_at title]}]
+  (str (rpt-str "-" (+ 1 number)) 
+	 "+"
+	 (rpt-str "-" (+ 2 created_at))
+	 "+"
+	 (rpt-str "-" (+ 1 title))))
+
+(defn make-header-items [x]
+  (item-line-str
+   {"number" "number" "created_at" "created_at" "title" "title"}
+   (select-keys x [:number :created_at :title])))
+
+(defn make-body [x]
+  (map #(item-line-str % (select-keys x [:number :created_at :title])) (:data x)))
+
+(defn process [data]
+  (-> (json/read-str data)
+	(->> (map #(select-keys % ["number" "title" "created_at"])))
+	(as-> x (assoc {} :data x))
+	(as-> x (merge x (reduce count-up {:number 6 :created_at 10 :title 5} (:data x))))
+	(as-> x (concat [(make-holizon-line x) (make-header-items x) (make-holizon-line x)] (make-body x)))
+	(->> (clojure.string/join "\n"))
+	print))
+
+(defn run []
+  (let [response @(http/get "https://api.github.com/repos/ruby/ruby/issues")]
+    (process (:body response))))
+#+END_SRC
+
+* ver-3
+#+BEGIN_SRC clojure
+(ns clj-issues.core3
+  (:require [org.httpkit.client :as http]
+            [clojure.data.json :as json]
+            [clj-issues.data :as data]))
+
+(defn count-up [a b]
+  {:number     (max  (:number     a) (-> (b "number"    ) str count))
+   :created_at (max  (:created_at a) (-> (b "created_at")     count))
+   :title      (max  (:title      a) (-> (b "title"     )     count))})
+
+(defn rpt-str [s n]
+  (apply str (repeat n s)))
+
+(defn item-line-str [data {:keys [number created_at title]}]
+  (let [fmt (format"%%-%ds | %%-%ds | %%-%ds" number created_at title)]
+      (format fmt (data "number") (data "created_at") (data "title"))))
+
+(defn make-holizon-line [{:keys [number created_at title]}]
+  (str (rpt-str "-" (+ 1 number))
+       "+"
+       (rpt-str "-" (+ 2 created_at))
+       "+"
+       (rpt-str "-" (+ 1 title))))
+
+(defn make-header-items [x]
+  (item-line-str
+   {"number" "number" "created_at" "created_at" "title" "title"}
+   (select-keys x [:number :created_at :title])))
+
+(defn make-body [x]
+  (map #(item-line-str % (select-keys x [:number :created_at :title])) (:data x)))
+
+(defn process [data]
+  (-> (json/read-str data)
+      (->> (map #(select-keys % ["number" "title" "created_at"])))
+      (as-> x (assoc {} :data x))
+      (as-> x (merge x (reduce count-up {:number 6 :created_at 10 :title 5} (:data x))))
+      (as-> x (concat [(make-holizon-line x) (make-header-items x) (make-holizon-line x)] (make-body x)))
+      (->> (clojure.string/join "\n"))
+      print))
+
+(defn run []
+  (let [response @(http/get "https://api.github.com/repos/ruby/ruby/issues")]
+    (process (:body response))))
+#+END_SRC
